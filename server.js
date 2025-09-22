@@ -13,8 +13,6 @@ app.use((req, res, next) => {
   next();
 });
 const DB_FILE = path.join(__dirname, "tickets.json");
-let cache = [];
-setInterval(() => cache.push({ ts: Date.now() }), 1000);
 function readDb() {
 const txt = fs.readFileSync(DB_FILE, "utf8") || "[]";
 return JSON.parse(txt);
