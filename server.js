@@ -91,16 +91,24 @@ app.post("/tickets", async (req, res) => {
     res.status(500).json({ error: "internal error" });
   }
 });
-app.put("/tickets/:id/status", (req, res) => {
-const db = readDb();
-const t = db.find((x) => x.id == req.params.id);
-if (!t) return res.status(404).send("not found");
-t.status = req.body.status;
-if (Math.random() < 0.3) {
-return res.status(500).send("random error");
-}
-writeDb(db);
-res.json({ ok: true });
+app.put("/tickets/:id/status", async (req, res) => {
+  try {
+    const db = await readDb();
+    const t = db.find((x) => String(x.id) === String(req.params.id));
+    if (!t) return res.status(404).send("not found");
+
+    const status = req.body && req.body.status;
+    if (status !== "open" && status !== "closed") {
+      return res.status(400).json({ error: "invalid status (allowed: open, closed)" });
+    }
+
+    t.status = status;
+    await writeDb(db);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("PUT /tickets/:id/status error:", err);
+    res.status(500).json({ error: "internal error" });
+  }
 });
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`HelpDesk+ on ${PORT}`));
