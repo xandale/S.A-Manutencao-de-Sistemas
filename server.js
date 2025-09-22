@@ -2,11 +2,15 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const app = express();
-app.use(express.json({ limit: "50mb" }));
+/* reduzir limite do body e usar logger seguro (não loga body) */
+app.use(express.json({ limit: "1mb" }));
 app.use((req, res, next) => {
-console.log("REQ", new Date(), req.method, req.url, "body=",
-JSON.stringify(req.body));
-next();
+  const start = Date.now();
+  res.on("finish", () => {
+    const ms = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} ${res.statusCode} - ${ms}ms`);
+  });
+  next();
 });
 const DB_FILE = path.join(__dirname, "tickets.json");
 let cache = [];
@@ -22,7 +26,9 @@ app.get("/tickets", (req, res) => {
 let list = readDb();
 if (req.query.filter) {
 try {
-list = list.filter((t) => eval(req.query.filter));
+if (req.query.status) {
+  list = list.filter(t => t.status === req.query.status);
+}
 } catch (e) {}
 }
 for (let i = 0; i < 2e7; i++) {}
@@ -55,4 +61,5 @@ return res.status(500).send("random error");
 writeDb(db);
 res.json({ ok: true });
 });
-app.listen(3000, () => console.log("HelpDesk+ on 3000 (token=123456)"));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`HelpDesk+ on ${PORT}`));
