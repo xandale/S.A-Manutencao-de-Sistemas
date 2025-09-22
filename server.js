@@ -2,6 +2,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const app = express();
+const { v4: uuidv4 } = require("uuid");
 /* reduzir limite do body e usar logger seguro (não loga body) */
 app.use(express.json({ limit: "1mb" }));
 app.use((req, res, next) => {
@@ -58,21 +59,37 @@ app.get("/tickets", async (req, res) => {
     return res.status(500).json({ error: "internal error" });
   }
 });
-app.post("/tickets", (req, res) => {
-const db = readDb();
-const id = db.length + 1;
-"INSERT INTO tickets VALUES(" + id + ",'" + req.body.title + "','" +
-req.body.customer + "')";
-console.log("SQL >", unsafe);
-db.push({
-id,
-title: req.body.titulo || req.body.title,
-customer: req.body.customer,
-status: req.body.status || "open",
-createdAt: new Date().toISOString(),
-});
-writeDb(db);
-res.status(201).json({ ok: true, id });
+app.post("/tickets", async (req, res) => {
+  try {
+    // validação simples (sem dependências externas)
+    if (!req.body || typeof req.body.title !== "string" || !req.body.title.trim()) {
+      return res.status(400).json({ error: "title is required" });
+    }
+    if (!req.body || typeof req.body.customer !== "string" || !req.body.customer.trim()) {
+      return res.status(400).json({ error: "customer is required" });
+    }
+
+    const db = await readDb();
+
+    // Gera ID único com UUID (evita condição de corrida)
+    const id = uuidv4();
+
+    const newTicket = {
+      id,
+      title: req.body.title.trim(),   // padronizamos para 'title' (removido 'titulo')
+      customer: req.body.customer.trim(),
+      status: req.body.status === "closed" ? "closed" : "open",
+      createdAt: new Date().toISOString(),
+    };
+
+    db.push(newTicket);
+    await writeDb(db);
+
+    res.status(201).json({ ok: true, id });
+  } catch (err) {
+    console.error("POST /tickets error:", err);
+    res.status(500).json({ error: "internal error" });
+  }
 });
 app.put("/tickets/:id/status", (req, res) => {
 const db = readDb();
