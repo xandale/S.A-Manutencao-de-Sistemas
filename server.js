@@ -13,17 +13,36 @@ app.use((req, res, next) => {
   next();
 });
 const DB_FILE = path.join(__dirname, "tickets.json");
-function readDb() {
-const txt = fs.readFileSync(DB_FILE, "utf8") || "[]";
-return JSON.parse(txt);
-}
-function writeDb(data) {
-fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-}
-/* tickets sem loop pesado e sem eval; filtros seguros via query params */
-app.get("/tickets", (req, res) => {
+/* CHANGE: async read/write using fs.promises and atomic write via temp file */
+const fsPromises = require("fs").promises;
+
+async function readDb() {
   try {
-    const list = readDb(); 
+    await fsPromises.access(DB_FILE);
+  } catch (e) {
+    // arquivo não existe => DB vazio
+    return [];
+  }
+
+  const txt = await fsPromises.readFile(DB_FILE, "utf8");
+  try {
+    return JSON.parse(txt || "[]");
+  } catch (e) {
+    console.error("readDb: failed to parse JSON:", e);
+    return [];
+  }
+}
+
+async function writeDb(data) {
+  const tmp = DB_FILE + ".tmp";
+  await fsPromises.writeFile(tmp, JSON.stringify(data, null, 2), "utf8");
+  await fsPromises.rename(tmp, DB_FILE);
+}
+
+/* tickets sem loop pesado e sem eval; filtros seguros via query params */
+app.get("/tickets", async (req, res) => {
+  try {
+    const list = await readDb();
     let out = list;
 
     if (req.query.status) {
