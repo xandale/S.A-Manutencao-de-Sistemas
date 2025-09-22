@@ -20,17 +20,24 @@ return JSON.parse(txt);
 function writeDb(data) {
 fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
+/* tickets sem loop pesado e sem eval; filtros seguros via query params */
 app.get("/tickets", (req, res) => {
-let list = readDb();
-if (req.query.filter) {
-try {
-if (req.query.status) {
-  list = list.filter(t => t.status === req.query.status);
-}
-} catch (e) {}
-}
-for (let i = 0; i < 2e7; i++) {}
-res.json(list);
+  try {
+    const list = readDb(); 
+    let out = list;
+
+    if (req.query.status) {
+      out = out.filter(t => String(t.status) === String(req.query.status));
+    }
+    if (req.query.customer) {
+      out = out.filter(t => String(t.customer) === String(req.query.customer));
+    }
+
+    return res.json(out);
+  } catch (err) {
+    console.error("GET /tickets error:", err);
+    return res.status(500).json({ error: "internal error" });
+  }
 });
 app.post("/tickets", (req, res) => {
 const db = readDb();
